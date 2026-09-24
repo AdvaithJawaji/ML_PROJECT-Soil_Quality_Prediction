@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TERRA.AI // Soil Quality Intelligence Dashboard</title>
+  <meta name="description" content="Minimalist Machine Learning Dashboard for Agronomic Soil Quality Evaluation & Classification (Decision Tree vs Random Forest)">
+  
+  <!-- Modern Typography: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top System Header -->
+  <header class="system-header" id="systemHeader">
+    <div class="header-container">
+      <div class="brand-block">
+        <div class="brand-glyph">⬡</div>
+        <div>
+          <div class="brand-title">TERRA<span class="mono-dim">.ENGINE</span></div>
+          <div class="brand-subtitle">SOIL QUALITY ML DIAGNOSTICS // V1.0.4</div>
+        </div>
+      </div>
+
+      <!-- Quick Status & Mode Toggle -->
+      <div class="header-actions">
+        <div class="status-indicator">
+          <span class="pulse-dot"></span>
+          <span class="status-text mono" id="modelStatusText">ENGINE ONLINE (100 RF TREES)</span>
+        </div>
+        <button id="themeToggleBtn" class="btn-icon" aria-label="Toggle Monochrome Theme" title="Toggle Black / White Mode">
+          <span class="theme-icon" id="themeIcon">◐</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Bar -->
+  <nav class="nav-bar" id="mainNavBar">
+    <div class="nav-container">
+      <div class="nav-tabs" role="tablist">
+        <button class="nav-tab active" data-tab="tab-predictor" id="tabBtnPredictor" role="tab" aria-selected="true">
+          <span class="tab-idx">01</span> LIVE INFERENCE
+        </button>
+        <button class="nav-tab" data-tab="tab-benchmarks" id="tabBtnBenchmarks" role="tab" aria-selected="false">
+          <span class="tab-idx">02</span> BENCHMARK MATRIX
+        </button>
+        <button class="nav-tab" data-tab="tab-features" id="tabBtnFeatures" role="tab" aria-selected="false">
+          <span class="tab-idx">03</span> FEATURE IMPORTANCE
+        </button>
+        <button class="nav-tab" data-tab="tab-tree" id="tabBtnTree" role="tab" aria-selected="false">
+          <span class="tab-idx">04</span> TREE INSPECTOR
+        </button>
+        <button class="nav-tab" data-tab="tab-dataset" id="tabBtnDataset" role="tab" aria-selected="false">
+          <span class="tab-idx">05</span> DATA EXPLORER
+        </button>
+      </div>
+      <button class="btn-action mono" id="generateReportBtn">
+        <span>EXPORT AUDIT</span> ↗
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="app-main" id="appMain">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: LIVE INFERENCE TERMINAL -->
+    <!-- ========================================================================= -->
+    <section class="tab-content active" id="tab-predictor" role="tabpanel">
+      
+      <!-- Top Preset Bar -->
+      <div class="section-card preset-bar">
+        <div class="preset-label mono">SOIL PROFILE PRESETS:</div>
+        <div class="preset-buttons">
+          <button class="preset-btn active" data-preset="optimal">OPTIMAL LOAM</button>
+          <button class="preset-btn" data-preset="acidic">ACIDIC SANDY</button>
+          <button class="preset-btn" data-preset="depleted">DEPLETED CLAY</button>
+          <button class="preset-btn" data-preset="fertile">HIGH-FERTILITY</button>
+          <button class="preset-btn" data-preset="alkaline">ALKALINE DRY</button>
+          <button class="preset-btn" data-preset="random">RANDOM TEST</button>
+        </div>
+      </div>
+
+      <div class="grid-2col">
+        <!-- Input Telemetry Panel -->
+        <div class="section-card">
+          <div class="card-header">
+            <div class="card-title mono">01 // SOIL TEST TELEMETRY</div>
+            <button class="btn-text mono" id="resetSlidersBtn">RESET</button>
+          </div>
+
+          <div class="sliders-container">
+            <!-- pH Slider -->
+            <div class="control-group">
+              <div class="control-label-row">
+                <label for="input-pH" class="control-name">
+                  <span class="badge-code mono">pH</span> Soil Acidity / Alkalinity
+                </label>
+                <span class="control-val mono" id="val-pH">6.80</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input type="range" id="input-pH" min="3.5" max="9.0" step="0.1" value="6.8">
+                <div class="range-guide">
+                  <span>Acidic (3.5)</span>
+                  <span class="guide-target">Optimal (6.0 - 7.5)</span>
+                  <span>Alkaline (9.0)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Nitrogen Slider -->
+            <div class="control-group">
+              <div class="control-label-row">
+                <label for="input-nitrogen" class="control-name">
+                  <span class="badge-code mono">N</span> Available Nitrogen (kg/ha)
+                </label>
+                <span class="control-val mono" id="val-nitrogen">290.0</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input type="range" id="input-nitrogen" min="50" max="480" step="5" value="290">
+                <div class="range-guide">
+                  <span>Low (50)</span>
+                  <span class="guide-target">Optimal (> 280 kg/ha)</span>
+                  <span>High (480)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phosphorus Slider -->
+            <div class="control-group">
+              <div class="control-label-row">
+                <label for="input-phosphorus" class="control-name">
+                  <span class="badge-code mono">P</span> Available Phosphorus (kg/ha)
+                </label>
+                <span class="control-val mono" id="val-phosphorus">28.0</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input type="range" id="input-phosphorus" min="5" max="55" step="1" value="28">
+                <div class="range-guide">
+                  <span>Deficient (5)</span>
+                  <span class="guide-target">Optimal (> 25 kg/ha)</span>
+                  <span>Abundant (55)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Potassium Slider -->
+            <div class="control-group">
+              <div class="control-label-row">
+                <label for="input-potassium" class="control-name">
+                  <span class="badge-code mono">K</span> Available Potassium (kg/ha)
+                </label>
+                <span class="control-val mono" id="val-potassium">180.0</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input type="range" id="input-potassium" min="60" max="320" step="5" value="180">
+                <div class="range-guide">
+                  <span>Low (60)</span>
+                  <span class="guide-target">Optimal (> 150 kg/ha)</span>
+                  <span>High (320)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Organic Matter Slider -->
+            <div class="control-group">
+              <div class="control-label-row">
+                <label for="input-organic" class="control-name">
+                  <span class="badge-code mono">OM</span> Organic Matter (%)
+                </label>
+                <span class="control-val mono" id="val-organic">3.50%</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input type="range" id="input-organic" min="0.5" max="6.0" step="0.1" value="3.5">
+                <div class="range-guide">
+                  <span>Depleted (0.5%)</span>
+                  <span class="guide-target">Optimal (> 3.0%)</span>
+                  <span>Rich (6.0%)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Moisture Slider -->
+            <div class="control-group">
+              <div class="control-label-row">
+                <label for="input-moisture" class="control-name">
+                  <span class="badge-code mono">M</span> Soil Moisture (%)
+                </label>
+                <span class="control-val mono" id="val-moisture">25.0%</span>
+              </div>
+              <div class="slider-track-wrap">
+                <input type="range" id="input-moisture" min="5" max="55" step="0.5" value="25.0">
+                <div class="range-guide">
+                  <span>Dry (5%)</span>
+                  <span class="guide-target">Optimal (20% - 40%)</span>
+                  <span>Saturated (55%)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-Time Classification Output -->
+        <div class="section-card prediction-results-panel">
+          <div class="card-header">
+            <div class="card-title mono">02 // INFERENCE VERDICT</div>
+            <div class="badge-outline mono" id="inferenceLatency">LATENCY: < 1ms</div>
+          </div>
+
+          <!-- Dual Model Verdicts -->
+          <div class="verdict-grid">
+            <!-- Random Forest Output -->
+            <div class="model-verdict-box primary-box">
+              <div class="model-tag-row">
+                <span class="model-badge mono">RANDOM FOREST (100 TREES)</span>
+                <span class="rec-pill mono">RECOMMENDED</span>
+              </div>
+              <div class="classification-output" id="rfClassOutput">HIGH QUALITY</div>
+              <div class="confidence-row">
+                <span class="mono-muted">ENSEMBLE CONFIDENCE</span>
+                <span class="mono-val" id="rfConfidenceVal">94.2%</span>
+              </div>
+            </div>
+
+            <!-- Decision Tree Output -->
+            <div class="model-verdict-box secondary-box">
+              <div class="model-tag-row">
+                <span class="model-badge mono">SINGLE DECISION TREE</span>
+                <span class="mono-muted">DEPTH = 6</span>
+              </div>
+              <div class="classification-output" id="dtClassOutput">HIGH QUALITY</div>
+              <div class="confidence-row">
+                <span class="mono-muted">LEAF CONFIDENCE</span>
+                <span class="mono-val" id="dtConfidenceVal">88.5%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Class Probabilities Distribution -->
+          <div class="sub-panel">
+            <div class="sub-panel-title mono">PROBABILITY DISTRIBUTION (RANDOM FOREST)</div>
+            
+            <div class="prob-distribution-bars">
+              <!-- High -->
+              <div class="prob-bar-group">
+                <div class="prob-meta-row mono">
+                  <span class="prob-class-name">HIGH QUALITY</span>
+                  <span class="prob-num" id="probNumHigh">0.0%</span>
+                </div>
+                <div class="prob-meter">
+                  <div class="prob-fill high-fill" id="probFillHigh" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- Medium -->
+              <div class="prob-bar-group">
+                <div class="prob-meta-row mono">
+                  <span class="prob-class-name">MEDIUM QUALITY</span>
+                  <span class="prob-num" id="probNumMedium">0.0%</span>
+                </div>
+                <div class="prob-meter">
+                  <div class="prob-fill med-fill" id="probFillMedium" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <!-- Low -->
+              <div class="prob-bar-group">
+                <div class="prob-meta-row mono">
+                  <span class="prob-class-name">LOW QUALITY</span>
+                  <span class="prob-num" id="probNumLow">0.0%</span>
+                </div>
+                <div class="prob-meter">
+                  <div class="prob-fill low-fill" id="probFillLow" style="width: 0%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agronomic Prescription Box -->
+          <div class="prescription-box" id="prescriptionBox">
+            <div class="prescription-header mono">
+              <span class="bullet-symbol">■</span> AGRONOMIC PRESCRIPTION & ACTION ITEMS
+            </div>
+            <div class="prescription-body" id="prescriptionBody">
+              Soil parameters indicate optimal nutrient balance and biological activity. Suitable for high-yield cereal, pulse, and cash crop rotations with minimal synthetic additive requirements.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: BENCHMARK MATRIX -->
+    <!-- ========================================================================= -->
+    <section class="tab-content" id="tab-benchmarks" role="tabpanel">
+      
+      <!-- Top KPIs -->
+      <div class="metrics-kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label mono">RF ACCURACY</div>
+          <div class="kpi-value mono" id="kpiRfAcc">74.00%</div>
+          <div class="kpi-sub mono">+10.33% vs Decision Tree</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label mono">RF F1-SCORE (MACRO)</div>
+          <div class="kpi-value mono" id="kpiRfF1">73.96%</div>
+          <div class="kpi-sub mono">+9.40% vs Decision Tree</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label mono">5-FOLD CV MEAN</div>
+          <div class="kpi-value mono" id="kpiRfCv">75.73%</div>
+          <div class="kpi-sub mono">Stratified K-Fold Validation</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label mono">GENERALIZATION STABILITY</div>
+          <div class="kpi-value mono" id="kpiRfVar">±4.14%</div>
+          <div class="kpi-sub mono">Low CV Variance Across Folds</div>
+        </div>
+      </div>
+
+      <!-- Comparative Tables & Confusion Matrices -->
+      <div class="grid-2col">
+        <!-- Performance Table -->
+        <div class="section-card">
+          <div class="card-header">
+            <div class="card-title mono">EVALUATION METRIC BREAKDOWN</div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table mono" id="benchmarkTable">
+              <thead>
+                <tr>
+                  <th>METRIC</th>
+                  <th>DECISION TREE</th>
+                  <th>RANDOM FOREST</th>
+                  <th>DIFFERENTIAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Accuracy</td>
+                  <td>63.67%</td>
+                  <td class="bold-white">74.00%</td>
+                  <td class="delta-pos">+10.33%</td>
+                </tr>
+                <tr>
+                  <td>Precision (Macro)</td>
+                  <td>67.86%</td>
+                  <td class="bold-white">73.93%</td>
+                  <td class="delta-pos">+6.07%</td>
+                </tr>
+                <tr>
+                  <td>Recall (Macro)</td>
+                  <td>63.67%</td>
+                  <td class="bold-white">74.00%</td>
+                  <td class="delta-pos">+10.33%</td>
+                </tr>
+                <tr>
+                  <td>F1-Score (Macro)</td>
+                  <td>64.56%</td>
+                  <td class="bold-white">73.96%</td>
+                  <td class="delta-pos">+9.40%</td>
+                </tr>
+                <tr>
+                  <td>5-Fold CV Mean</td>
+                  <td>67.27%</td>
+                  <td class="bold-white">75.73%</td>
+                  <td class="delta-pos">+8.46%</td>
+                </tr>
+                <tr>
+                  <td>5-Fold CV Std Dev</td>
+                  <td>±3.59%</td>
+                  <td class="bold-white">±4.14%</td>
+                  <td class="mono-dim">Consistent</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="technical-note mono">
+            Note: Models were trained on 80% stratified splits (1,200 samples) and evaluated on 20% holdout test data (300 samples) with Standardized feature z-scores.
+          </div>
+        </div>
+
+        <!-- Interactive Confusion Matrix Heatmap -->
+        <div class="section-card">
+          <div class="card-header">
+            <div class="card-title mono">CONFUSION MATRICES (TEST SET N=300)</div>
+            <div class="matrix-toggle-btns">
+              <button class="matrix-btn active" id="btnShowRfMatrix">RANDOM FOREST</button>
+              <button class="matrix-btn" id="btnShowDtMatrix">DECISION TREE</button>
+            </div>
+          </div>
+
+          <div class="matrix-display-container">
+            <div class="matrix-canvas-wrap" id="matrixCanvasWrap">
+              <!-- SVG Heatmap rendered by app.js -->
+              <svg id="confusionMatrixSvg" viewBox="0 0 420 320" width="100%" height="auto"></svg>
+            </div>
+            <div class="matrix-legend mono">
+              <span>TRUE LABELS (ROWS) vs PREDICTED LABELS (COLUMNS)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: FEATURE IMPORTANCE -->
+    <!-- ========================================================================= -->
+    <section class="tab-content" id="tab-features" role="tabpanel">
+      <div class="section-card">
+        <div class="card-header">
+          <div class="card-title mono">FEATURE WEIGHTS & AGRONOMIC SENSITIVITY</div>
+          <div class="mono-muted mono">GINI IMPURITY IMPORTANCE COEFFICIENTS</div>
+        </div>
+
+        <div class="feature-bars-container" id="featureBarsContainer">
+          <!-- Rendered dynamically by app.js -->
+        </div>
+
+        <div class="feature-insights-grid">
+          <div class="insight-box">
+            <div class="insight-title mono">01 // pH DOMINANCE (27.7%)</div>
+            <p>Soil pH acts as the primary gatekeeper for biological nutrient uptake. Extremes directly lock out macronutrients regardless of soil chemical abundance.</p>
+          </div>
+          <div class="insight-box">
+            <div class="insight-title mono">02 // NITROGEN IMPACT (22.6%)</div>
+            <p>Primary driver for vegetation biomass. Soils exceeding 280 kg/ha exhibit a high correlation with top-tier agronomic classification.</p>
+          </div>
+          <div class="insight-box">
+            <div class="insight-title mono">03 // P & K EQUILIBRIUM (~27.6%)</div>
+            <p>Phosphorus and Potassium establish root strength and drought resilience, separating moderate soil performance from high yields.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: TREE INSPECTOR -->
+    <!-- ========================================================================= -->
+    <section class="tab-content" id="tab-tree" role="tabpanel">
+      <div class="section-card">
+        <div class="card-header">
+          <div class="card-title mono">DECISION TREE ARCHITECTURE & SPLIT RULES</div>
+          <div class="badge-outline mono">DEPTH: 6 // LEAF NODES: 55</div>
+        </div>
+
+        <p class="section-desc mono-muted">
+          Inspect the deterministic rule path traversed by the single Decision Tree. Root splits on standardized pH followed by Nitrogen partitioning.
+        </p>
+
+        <div class="tree-visualizer-container">
+          <div class="tree-static-view">
+            <img src="static/plots/decision_tree_structure.png" alt="Decision Tree Structure" class="tree-img-diagram" id="treeImgDiagram">
+          </div>
+        </div>
+
+        <div class="tree-rules-browser">
+          <div class="rules-header mono">TOP BRANCH PARTITION LOGIC:</div>
+          <div class="code-terminal mono">
+            <div class="term-line"><span class="t-keyword">ROOT NODE:</span> IF <span class="t-feat">pH</span> &le; 6.38 THEN GOTO <span class="t-node">NODE 1</span> ELSE GOTO <span class="t-node">NODE 2</span></div>
+            <div class="term-line indent-1">├─ <span class="t-keyword">NODE 1 (Acidic branch):</span> IF <span class="t-feat">Nitrogen</span> &le; 188.5 kg/ha &rarr; <span class="t-pred pred-low">PREDICTION: LOW QUALITY</span> (Purity: 92.4%)</div>
+            <div class="term-line indent-1">└─ <span class="t-keyword">NODE 2 (Optimal pH branch):</span> IF <span class="t-feat">Nitrogen</span> &gt; 276.0 kg/ha AND <span class="t-feat">Organic_Matter</span> &gt; 2.8% &rarr; <span class="t-pred pred-high">PREDICTION: HIGH QUALITY</span> (Purity: 96.1%)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 5: DATASET EXPLORER -->
+    <!-- ========================================================================= -->
+    <section class="tab-content" id="tab-dataset" role="tabpanel">
+      <div class="section-card">
+        <div class="card-header">
+          <div class="card-title mono">DATASET REPOSITORY (`data/soil_data.csv`)</div>
+          <div class="data-search-wrap">
+            <input type="text" id="datasetSearchInput" class="data-search-input mono" placeholder="FILTER BY QUALITY (High, Medium, Low) OR SEARCH...">
+          </div>
+        </div>
+
+        <!-- Data Summary Stats Grid -->
+        <div class="stats-summary-grid">
+          <div class="stat-pill">
+            <span class="stat-title mono">TOTAL SAMPLES</span>
+            <span class="stat-num mono" id="totalSamplesCount">1,500</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-title mono">HIGH QUALITY</span>
+            <span class="stat-num mono" id="highSamplesCount">500 (33.3%)</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-title mono">MEDIUM QUALITY</span>
+            <span class="stat-num mono" id="medSamplesCount">500 (33.3%)</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-title mono">LOW QUALITY</span>
+            <span class="stat-num mono" id="lowSamplesCount">500 (33.3%)</span>
+          </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="table-wrap dataset-table-wrap">
+          <table class="data-table mono" id="datasetTable">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>pH</th>
+                <th>NITROGEN (N)</th>
+                <th>PHOSPHORUS (P)</th>
+                <th>POTASSIUM (K)</th>
+                <th>ORGANIC MATTER</th>
+                <th>MOISTURE</th>
+                <th>QUALITY CLASS</th>
+              </tr>
+            </thead>
+            <tbody id="datasetTableBody">
+              <!-- Loaded dynamically by app.js -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination-bar mono">
+          <button class="page-btn" id="prevPageBtn">&larr; PREV</button>
+          <span class="page-info" id="pageInfo">PAGE 1 / 15</span>
+          <button class="page-btn" id="nextPageBtn">NEXT &rarr;</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Agronomic Audit Report Modal -->
+  <div class="modal-backdrop" id="reportModalBackdrop">
+    <div class="modal-window">
+      <div class="modal-header">
+        <div class="modal-title mono">OFFICIAL AGRONOMIC AUDIT & ML CLASSIFICATION CERTIFICATE</div>
+        <button class="modal-close-btn" id="closeModalBtn">&times;</button>
+      </div>
+      <div class="modal-body" id="modalPrintArea">
+        <div class="report-header-section">
+          <div class="report-org mono">TERRA INTELLIGENCE SYSTEMS // SOIL EVALUATION LABORATORY</div>
+          <div class="report-date mono" id="reportTimestamp">TIMESTAMP: 2026-09-24 12:00:00 UTC</div>
+        </div>
+
+        <div class="report-summary-block">
+          <div class="report-col">
+            <div class="rep-label mono">EVALUATION MODEL</div>
+            <div class="rep-val mono">Random Forest Ensemble (100 Trees)</div>
+          </div>
+          <div class="report-col">
+            <div class="rep-label mono">CLASSIFICATION</div>
+            <div class="rep-val mono highlight-val" id="repClassification">HIGH QUALITY</div>
+          </div>
+          <div class="report-col">
+            <div class="rep-label mono">CONFIDENCE SCORE</div>
+            <div class="rep-val mono" id="repConfidence">95.4%</div>
+          </div>
+        </div>
+
+        <div class="report-section-title mono">SAMPLE BIOCHEMICAL METRICS</div>
+        <table class="data-table mono report-table">
+          <thead>
+            <tr>
+              <th>PARAMETER</th>
+              <th>TEST VALUE</th>
+              <th>OPTIMAL AGRONOMIC RANGE</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody id="reportTableBody">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+
+        <div class="report-section-title mono">MANAGEMENT DIRECTIVES</div>
+        <div class="report-directives-box mono" id="reportDirectives">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="report-sign-block mono">
+          <div>ENGINE: TERRA.AI SC-ML-01</div>
+          <div>AUTHORIZED: AG-ML AUTOMATED PROTOCOL</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-text mono" id="cancelModalBtn">CANCEL</button>
+        <button class="btn-action mono" id="printReportBtn">🖨️ PRINT / EXPORT PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="system-footer mono">
+    <div class="footer-content">
+      <span>TERRA.ENGINE // SOIL QUALITY ML BENCHMARK SYSTEM</span>
+      <span>RESEARCH AUTHORS: P. NAVEEN • J. ADVAITH • P. SHASHE PREETHAM</span>
+      <span>GUIDE: PROF. G. RAVINDRA BABU</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
