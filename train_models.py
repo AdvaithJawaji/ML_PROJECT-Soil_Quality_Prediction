@@ -17,8 +17,17 @@ def train_and_evaluate():
         
     df = pd.read_csv(data_path)
     
-    X = df.drop(columns=['Soil_Quality'])
-    y = df['Soil_Quality']
+    target_column = next(
+        (column for column in ('Soil_Quality', 'Soil_Type') if column in df.columns),
+        None,
+    )
+    if target_column is None:
+        raise ValueError(
+            "Dataset must contain a target column named 'Soil_Quality' or 'Soil_Type'."
+        )
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
     
     feature_names = list(X.columns)
     

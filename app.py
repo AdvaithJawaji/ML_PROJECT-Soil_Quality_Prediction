@@ -1,277 +1,549 @@
-import os
 import json
-# pyrefly: ignore [missing-import]
+import os
+from datetime import datetime, timezone
+
 import joblib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-# pyrefly: ignore [missing-import]
-import matplotlib.pyplot as plt
-# pyrefly: ignore [missing-import]
 import streamlit as st
+from sklearn.tree import plot_tree
 
-# Page Config
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, "models")
+DATA_PATH = os.path.join(BASE_DIR, "data", "soil_data.csv")
+
 st.set_page_config(
-    page_title="Soil Quality Classification ML",
-    page_icon="🌱",
+    page_title="Terra | Soil Intelligence",
+    page_icon="🌾",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed",
 )
 
-# Custom CSS for Modern Styling & Glassmorphism
-st.markdown("""
+st.markdown(
+    """
     <style>
-    /* Main Background & Fonts */
-    .stApp {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        color: #f8fafc;
-        font-family: 'Inter', system-ui, sans-serif;
-    }
-    
-    /* Title Banner */
-    .title-banner {
-        background: linear-gradient(90deg, #1e3a8a 0%, #065f46 100%);
-        padding: 24px;
-        border-radius: 16px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 24px;
-        text-align: center;
-    }
-    
-    .title-banner h1 {
-        color: #ffffff;
-        margin: 0;
-        font-size: 2.2rem;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-    }
-    
-    .title-banner p {
-        color: #cbd5e1;
-        margin-top: 8px;
-        font-size: 1.05rem;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
 
-    /* Metric Cards */
-    .metric-card {
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(12px);
-        border-radius: 12px;
-        padding: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-        text-align: center;
+    :root {
+        --cream: #f7f3eb;
+        --paper: #fffdf8;
+        --ink: #31261d;
+        --muted: #786b5d;
+        --brown: #76543b;
+        --brown-dark: #4e3828;
+        --sage: #667b55;
+        --line: #e9dfd1;
     }
-    .metric-card h3 {
-        margin: 0;
-        color: #94a3b8;
-        font-size: 0.95rem;
-        text-transform: uppercase;
+    .stApp {
+        background: radial-gradient(ellipse at 10% 0%, #f2e9d9 0%, transparent 42%),
+                    linear-gradient(150deg, #f8f5ee 0%, #f1ebdf 100%);
+        color: var(--ink);
+        font-family: 'DM Sans', sans-serif;
+        background-attachment: fixed;
     }
-    .metric-card .value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        margin-top: 6px;
+    [data-testid="stHeader"] { background: transparent; }
+    [data-testid="stAppViewContainer"] { background: transparent; }
+    .block-container { max-width: 1320px; padding-top: 2rem; padding-bottom: 3rem; }
+    h1, h2, h3 { color: var(--ink); }
+    h1, h2 { font-family: 'Playfair Display', Georgia, serif; }
+    .hero {
+        background: linear-gradient(120deg, #4e3828 0%, #76543b 57%, #8b704f 100%);
+        border-radius: 24px;
+        padding: 2.3rem 2.6rem;
+        color: #fffaf0;
+        box-shadow: 0 18px 42px rgba(78, 56, 40, .15);
+        position: relative;
+        overflow: hidden;
+        animation: rise-in .65s ease-out both;
     }
-    .val-high { color: #34d399; }
-    .val-medium { color: #fbbf24; }
-    .val-low { color: #f87171; }
-    
-    /* Section Containers */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
+    .hero:after {
+        content: "✳";
+        position: absolute;
+        right: 4%;
+        top: -45%;
+        color: rgba(255,255,255,.08);
+        font-size: 18rem;
+        line-height: 1;
     }
-    .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        border-radius: 8px;
-        background-color: rgba(30, 41, 59, 0.6);
-        color: #cbd5e1;
-        padding: 0 20px;
+    .hero h1 { color: #fffaf0; font-size: clamp(2rem, 4vw, 3.1rem); margin: .35rem 0; }
+    .hero p { color: #eadfce; margin: .3rem 0 0; font-size: 1rem; }
+    .eyebrow { color: #d6c3a7; letter-spacing: .16em; font-size: .72rem; font-weight: 700; }
+    .section-kicker { color: var(--sage); text-transform: uppercase; letter-spacing: .13em; font-size: .72rem; font-weight: 700; }
+    [data-testid="stTabs"] { margin-top: 1.3rem; }
+    [data-baseweb="tab-list"] { gap: .55rem; border-bottom: 1px solid var(--line); }
+    [data-baseweb="tab"] {
+        height: 3.1rem;
+        color: var(--muted);
+        background: rgba(255,253,248,.65);
+        border-radius: 12px 12px 0 0;
+        padding: 0 1.2rem;
+        transition: background .2s ease, color .2s ease;
     }
-    .stTabs [aria-selected="true"] {
-        background-color: #059669 !important;
-        color: #ffffff !important;
+    [data-baseweb="tab"]:hover { color: var(--brown-dark); background: #fffdf8; }
+    [aria-selected="true"][data-baseweb="tab"] { color: var(--brown-dark); border-bottom-color: var(--brown); }
+    [data-testid="stMetric"] {
+        background: rgba(255,253,248,.88);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 1rem 1.15rem;
+        box-shadow: 0 6px 22px rgba(78,56,40,.045);
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+    [data-testid="stMetric"]:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(78,56,40,.09); }
+    [data-testid="stMetricLabel"] { color: var(--muted); }
+    [data-testid="stMetricValue"] { color: var(--brown-dark); }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(255,253,248,.63);
+        border-color: rgba(255,255,255,.78) !important;
+        border-radius: 18px;
+        box-shadow: 0 12px 34px rgba(78,56,40,.055), inset 0 1px rgba(255,255,255,.72);
+        backdrop-filter: blur(16px);
+        transition: transform .22s ease, box-shadow .22s ease;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 36px rgba(78,56,40,.085), inset 0 1px rgba(255,255,255,.8);
+    }
+    .prediction-card {
+        background: rgba(255,253,248,.65);
+        border: 1px solid rgba(255,255,255,.85);
+        border-radius: 18px;
+        padding: 1.35rem;
+        min-height: 142px;
+        box-shadow: 0 12px 30px rgba(78,56,40,.075), inset 0 1px rgba(255,255,255,.8);
+        backdrop-filter: blur(16px);
+        animation: rise-in .4s ease-out both;
+        transition: transform .22s ease, box-shadow .22s ease;
+    }
+    .prediction-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 18px 38px rgba(78,56,40,.12), inset 0 1px rgba(255,255,255,.9);
+    }
+    .prediction-card.rf { border-top: 4px solid var(--sage); }
+    .prediction-card.dt { border-top: 4px solid var(--brown); }
+    .prediction-title { color: var(--muted); font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
+    .prediction-value { color: var(--brown-dark); font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 700; margin: .4rem 0; }
+    .prediction-note { color: var(--muted); font-size: .85rem; }
+    div.stButton > button {
+        border-radius: 11px;
+        border-color: #d5c4ae;
+        color: var(--brown-dark);
+        background: #fffdf8;
+        transition: all .18s ease;
+    }
+    div.stButton > button:hover { border-color: var(--brown); color: #fffaf0; background: var(--brown); }
+    [data-testid="stDataFrame"] { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .footnote { color: var(--muted); font-size: .8rem; }
+    .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        color: var(--brown-dark);
+        background: rgba(102,123,85,.12);
+        border: 1px solid rgba(102,123,85,.22);
+        border-radius: 99px;
+        padding: .45rem .75rem;
+        font-size: .82rem;
         font-weight: 600;
     }
+    div[data-testid="stDownloadButton"] > button {
+        width: 100%;
+        min-height: 2.8rem;
+        border-radius: 11px;
+        border: 1px solid #d5c4ae;
+        color: var(--brown-dark);
+        background: rgba(255,253,248,.72);
+        transition: all .2s ease;
+    }
+    div[data-testid="stDownloadButton"] > button:hover {
+        transform: translateY(-2px);
+        border-color: var(--brown);
+        color: #fffaf0;
+        background: var(--brown);
+    }
+    @keyframes rise-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
-# Helper function to load artifacts
+SOIL_PROFILES = {
+    "Balanced loam": {
+        "pH": 6.8, "Nitrogen": 290.0, "Phosphorus": 28.0,
+        "Potassium": 180.0, "Organic_Matter": 3.5, "Moisture": 25.0,
+    },
+    "Acidic sample": {
+        "pH": 4.8, "Nitrogen": 120.0, "Phosphorus": 12.0,
+        "Potassium": 85.0, "Organic_Matter": 1.1, "Moisture": 14.0,
+    },
+    "Nutrient-rich sample": {
+        "pH": 7.1, "Nitrogen": 410.0, "Phosphorus": 45.0,
+        "Potassium": 270.0, "Organic_Matter": 5.2, "Moisture": 30.0,
+    },
+    "Dry sample": {
+        "pH": 7.8, "Nitrogen": 180.0, "Phosphorus": 16.0,
+        "Potassium": 120.0, "Organic_Matter": 1.6, "Moisture": 8.0,
+    },
+}
+
+
 @st.cache_resource
 def load_ml_artifacts():
-    dt_model = joblib.load(os.path.join("models", "decision_tree.pkl"))
-    rf_model = joblib.load(os.path.join("models", "random_forest.pkl"))
-    scaler = joblib.load(os.path.join("models", "scaler.pkl"))
-    le = joblib.load(os.path.join("models", "label_encoder.pkl"))
-    
-    with open(os.path.join("models", "metrics.json"), "r") as f:
-        metrics = json.load(f)
-        
-    return dt_model, rf_model, scaler, le, metrics
+    decision_tree = joblib.load(os.path.join(MODEL_DIR, "decision_tree.pkl"))
+    random_forest = joblib.load(os.path.join(MODEL_DIR, "random_forest.pkl"))
+    scaler = joblib.load(os.path.join(MODEL_DIR, "scaler.pkl"))
+    label_encoder = joblib.load(os.path.join(MODEL_DIR, "label_encoder.pkl"))
+    with open(os.path.join(MODEL_DIR, "metrics.json"), encoding="utf-8") as metrics_file:
+        model_metrics = json.load(metrics_file)
+    return decision_tree, random_forest, scaler, label_encoder, model_metrics
+
+
+@st.cache_data
+def load_dataset():
+    return pd.read_csv(DATA_PATH)
+
 
 try:
-    dt_model, rf_model, scaler, le, metrics = load_ml_artifacts()
-except Exception as e:
-    st.error("Model artifacts not found! Please run `train_models.py` first.")
+    dt_model, rf_model, scaler, label_encoder, metrics = load_ml_artifacts()
+except (FileNotFoundError, OSError, ValueError, KeyError) as error:
+    st.error(f"Could not load the trained model artifacts from `{MODEL_DIR}`: {error}")
+    st.info("Run `train_models.py` from the ML project folder to create or refresh them.")
     st.stop()
 
-# Header Banner
-st.markdown("""
-    <div class="title-banner">
-        <h1>🌱 Soil Quality Classification Engine</h1>
-        <p>Comparative Machine Learning Evaluation: <b>Decision Tree</b> vs. <b>Random Forest Ensemble</b></p>
-        <p style="font-size: 0.85rem; color: #94a3b8;">Authors: P. Naveen | J. Advaith | P. Shashe Preetham &nbsp;•&nbsp; Guided by: Prof. G. Ravindra Babu</p>
+feature_names = metrics.get("feature_names", list(scaler.feature_names_in_))
+class_names = list(label_encoder.classes_)
+
+st.markdown(
+    """
+    <div class="hero">
+      <div class="eyebrow">TERRA · SOIL INTELLIGENCE</div>
+      <h1>Read the land.<br>Grow with confidence.</h1>
+      <p>Explore soil quality predictions and the trained models behind them.</p>
     </div>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
+st.write("")
 
-# Main Navigation Tabs
-tab1, tab2, tab3, tab4 = st.tabs([
-    "🔮 Live Classification", 
-    "📊 Performance Analytics", 
-    "🌲 Feature & Tree Insights", 
-    "📁 Dataset Explorer"
-])
+tab_live, tab_performance, tab_insights, tab_data = st.tabs(
+    ["🌱  Live classification", "📈  Model performance", "🌿  Feature & tree insights", "🗂️  Dataset explorer"]
+)
 
-# ==============================================================================
-# TAB 1: LIVE CLASSIFICATION
-# ==============================================================================
-with tab1:
-    st.markdown("### 🧪 Input Soil Parameters")
-    
-    col_input, col_pred = st.columns([1, 1], gap="large")
-    
-    with col_input:
-        st.markdown("Adjust the soil chemical and physical test parameters below:")
-        
-        pH = st.slider("Soil pH Level", 3.5, 9.0, 6.8, 0.1, help="Optimal range: 6.0 - 7.5")
-        nitrogen = st.slider("Nitrogen (N) [kg/ha]", 50.0, 480.0, 290.0, 5.0, help="Optimal range: > 280 kg/ha")
-        phosphorus = st.slider("Phosphorus (P) [kg/ha]", 5.0, 55.0, 28.0, 1.0, help="Optimal range: > 25 kg/ha")
-        potassium = st.slider("Potassium (K) [kg/ha]", 60.0, 320.0, 180.0, 5.0, help="Optimal range: > 150 kg/ha")
-        organic_matter = st.slider("Organic Matter (%)", 0.5, 6.0, 3.5, 0.1, help="Optimal range: > 3.0%")
-        moisture = st.slider("Soil Moisture (%)", 5.0, 55.0, 25.0, 0.5, help="Optimal range: 20% - 40%")
-        
-        sample_input = pd.DataFrame([{
-            'pH': pH,
-            'Nitrogen': nitrogen,
-            'Phosphorus': phosphorus,
-            'Potassium': potassium,
-            'Organic_Matter': organic_matter,
-            'Moisture': moisture
-        }])
-        
-    with col_pred:
-        st.markdown("### 🎯 Model Predictions")
-        
-        # Scaling input
-        sample_scaled = scaler.transform(sample_input)
-        
-        # Predictions
-        dt_pred_idx = dt_model.predict(sample_scaled)[0]
-        dt_pred_label = le.inverse_transform([dt_pred_idx])[0]
-        dt_probs = dt_model.predict_proba(sample_scaled)[0]
-        
-        rf_pred_idx = rf_model.predict(sample_scaled)[0]
-        rf_pred_label = le.inverse_transform([rf_pred_idx])[0]
-        rf_probs = rf_model.predict_proba(sample_scaled)[0]
-        
-        # Display side by side predictions
-        p1, p2 = st.columns(2)
-        
-        with p1:
-            cls_dt = f"val-{dt_pred_label.lower()}"
-            st.markdown(f"""
-                <div class="metric-card">
-                    <h3>Decision Tree</h3>
-                    <div class="value {cls_dt}">{dt_pred_label} Quality</div>
-                    <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 4px;">Single Decision Tree Split</p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with p2:
-            cls_rf = f"val-{rf_pred_label.lower()}"
-            st.markdown(f"""
-                <div class="metric-card" style="border: 2px solid #059669;">
-                    <h3>Random Forest</h3>
-                    <div class="value {cls_rf}">{rf_pred_label} Quality</div>
-                    <p style="color: #34d399; font-size: 0.85rem; margin-top: 4px;">Recommended Ensemble Model</p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        st.markdown("#### Class Probability Distributions")
-        
-        prob_df = pd.DataFrame({
-            'Class': le.classes_,
-            'Decision Tree (%)': np.round(dt_probs * 100, 1),
-            'Random Forest (%)': np.round(rf_probs * 100, 1)
-        })
-        
-        st.dataframe(prob_df, width="stretch", hide_index=True)
-        
-        # Agronomic Guidance Box
-        st.markdown("#### 💡 Agronomic Recommendations")
-        rec_rf = rf_pred_label
-        if rec_rf == "High":
-            st.success("🟢 **Excellent Soil Fertility!** Optimal for major crop cultivation. Maintain organic matter levels with rotation and sustainable irrigation.")
-        elif rec_rf == "Medium":
-            st.warning("🟡 **Moderate Soil Quality.** Fertilizer augmentation recommended: check N-P-K balance and maintain 20–30% moisture.")
+with tab_live:
+    st.markdown('<div class="section-kicker">Soil assessment</div>', unsafe_allow_html=True)
+    st.subheader("Enter your soil test values")
+    input_col, result_col = st.columns([1, 1.08], gap="large")
+    default_inputs = {
+        "pH": 6.8,
+        "Nitrogen": 290.0,
+        "Phosphorus": 28.0,
+        "Potassium": 180.0,
+        "Organic_Matter": 3.5,
+        "Moisture": 25.0,
+    }
+
+    with input_col:
+        with st.container(border=True):
+            st.caption("Start with a profile or tune each measurement to your soil test.")
+            selected_profile = st.selectbox(
+                "Quick-start profile",
+                ["Custom values", *SOIL_PROFILES],
+                key="soil_profile",
+            )
+            profile_defaults = SOIL_PROFILES.get(selected_profile, default_inputs)
+            profile_key = selected_profile.lower().replace(" ", "_")
+            pH = st.slider(
+                "Soil pH", 3.5, 9.0, value=profile_defaults["pH"], step=0.1,
+                key=f"{profile_key}_pH", help="Scale from acidic to alkaline.",
+            )
+            nitrogen = st.slider(
+                "Nitrogen · kg/ha", 50.0, 480.0, value=profile_defaults["Nitrogen"],
+                step=5.0, key=f"{profile_key}_nitrogen",
+            )
+            phosphorus = st.slider(
+                "Phosphorus · kg/ha", 5.0, 55.0, value=profile_defaults["Phosphorus"],
+                step=1.0, key=f"{profile_key}_phosphorus",
+            )
+            potassium = st.slider(
+                "Potassium · kg/ha", 60.0, 320.0, value=profile_defaults["Potassium"],
+                step=5.0, key=f"{profile_key}_potassium",
+            )
+            organic_matter = st.slider(
+                "Organic matter · %", 0.5, 6.0, value=profile_defaults["Organic_Matter"],
+                step=0.1, key=f"{profile_key}_organic_matter",
+            )
+            moisture = st.slider(
+                "Soil moisture · %", 5.0, 55.0, value=profile_defaults["Moisture"],
+                step=0.5, key=f"{profile_key}_moisture",
+            )
+
+    sample = pd.DataFrame(
+        [[pH, nitrogen, phosphorus, potassium, organic_matter, moisture]],
+        columns=feature_names,
+    )
+    sample_scaled = scaler.transform(sample)
+    dt_index = int(dt_model.predict(sample_scaled)[0])
+    rf_index = int(rf_model.predict(sample_scaled)[0])
+    dt_label = str(label_encoder.inverse_transform([dt_index])[0])
+    rf_label = str(label_encoder.inverse_transform([rf_index])[0])
+    dt_probabilities = dt_model.predict_proba(sample_scaled)[0]
+    rf_probabilities = rf_model.predict_proba(sample_scaled)[0]
+
+    with result_col:
+        st.markdown('<div class="section-kicker">Model results</div>', unsafe_allow_html=True)
+        st.subheader("Classification")
+        dt_col, rf_col = st.columns(2)
+        dt_confidence = float(np.max(dt_probabilities)) * 100
+        rf_confidence = float(np.max(rf_probabilities)) * 100
+        with dt_col:
+            st.markdown(
+                f'<div class="prediction-card dt"><div class="prediction-title">Decision tree</div>'
+                f'<div class="prediction-value">{dt_label}</div>'
+                f'<div class="prediction-note">Highest class probability · {dt_confidence:.1f}%</div></div>',
+                unsafe_allow_html=True,
+            )
+        with rf_col:
+            st.markdown(
+                f'<div class="prediction-card rf"><div class="prediction-title">Random forest · 100 trees</div>'
+                f'<div class="prediction-value">{rf_label}</div>'
+                f'<div class="prediction-note">Highest class probability · {rf_confidence:.1f}%</div></div>',
+                unsafe_allow_html=True,
+            )
+
+        agreement_col, download_col = st.columns([1, 1])
+        with agreement_col:
+            if dt_label == rf_label:
+                st.markdown(
+                    '<div class="status-chip">✦ Models agree on this classification</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div class="status-chip">↗ Models differ · review probabilities</div>',
+                    unsafe_allow_html=True,
+                )
+        report = {
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "inputs": {name: float(value) for name, value in sample.iloc[0].items()},
+            "decision_tree": {
+                "prediction": dt_label,
+                "class_probabilities": {
+                    str(name): float(probability)
+                    for name, probability in zip(class_names, dt_probabilities)
+                },
+            },
+            "random_forest": {
+                "prediction": rf_label,
+                "class_probabilities": {
+                    str(name): float(probability)
+                    for name, probability in zip(class_names, rf_probabilities)
+                },
+            },
+            "models_agree": dt_label == rf_label,
+        }
+        with download_col:
+            st.download_button(
+                "↓  Download assessment · JSON",
+                data=json.dumps(report, indent=2),
+                file_name="terra-soil-assessment.json",
+                mime="application/json",
+            )
+
+        st.write("")
+        probability_frame = pd.DataFrame(
+            {
+                "Class": class_names,
+                "Decision tree": dt_probabilities,
+                "Random forest": rf_probabilities,
+            }
+        ).set_index("Class")
+        st.caption("Predicted class probabilities")
+        st.bar_chart(probability_frame, color=["#9b7653", "#667b55"], x_label="Quality class", y_label="Probability")
+
+        recommendations = {
+            "High": ("Strong result", "The model classifies this sample as high quality. Maintain soil structure and organic matter; confirm management decisions with local soil guidance."),
+            "Medium": ("Room to improve", "The model classifies this sample as medium quality. Review the nutrient balance and moisture readings, and use a soil test to guide any amendments."),
+            "Low": ("Needs attention", "The model classifies this sample as low quality. Check pH and nutrient availability with a local soil test before choosing corrective amendments."),
+        }
+        title, recommendation = recommendations.get(
+            rf_label, ("Assessment", "Review the input measurements and consult a local soil specialist.")
+        )
+        st.markdown(f"**{title}**  \n{recommendation}")
+        st.caption("Model output is an estimate, not a substitute for laboratory testing or local agronomic advice.")
+
+        if os.path.isfile(DATA_PATH):
+            reference_data = load_dataset()
+            if all(name in reference_data.columns for name in feature_names):
+                with st.expander("How does this compare with training samples?"):
+                    range_rows = []
+                    sample_values = sample.iloc[0]
+                    for name in feature_names:
+                        observed = reference_data[name].dropna()
+                        low, high = observed.quantile([0.05, 0.95])
+                        value = float(sample_values[name])
+                        range_rows.append(
+                            {
+                                "Measurement": name.replace("_", " "),
+                                "Your value": value,
+                                "Training data · 5th–95th percentile": f"{low:.2f} – {high:.2f}",
+                                "Range check": "Within observed range" if low <= value <= high else "Outside observed range",
+                            }
+                        )
+                    st.dataframe(pd.DataFrame(range_rows), hide_index=True, width="stretch")
+                    st.caption(
+                        "This is a descriptive comparison with this dataset, not an agronomic optimum or model guarantee."
+                    )
+            else:
+                st.info("Training data does not contain all model features, so the range comparison is unavailable.")
+
+    st.write("")
+    with st.expander("Current sample values"):
+        st.dataframe(sample, hide_index=True, width="stretch")
+
+with tab_performance:
+    st.markdown('<div class="section-kicker">Evaluation results</div>', unsafe_allow_html=True)
+    st.subheader("How the models performed")
+    dt_metrics = metrics["decision_tree"]
+    rf_metrics = metrics["random_forest"]
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("Random forest accuracy", f"{rf_metrics['accuracy']:.1%}")
+    metric_cols[1].metric("Macro F1 score", f"{rf_metrics['f1_macro']:.1%}")
+    metric_cols[2].metric("5-fold CV mean", f"{rf_metrics['cv_mean']:.1%}")
+    metric_cols[3].metric("CV standard deviation", f"±{rf_metrics['cv_std']:.1%}")
+
+    left, right = st.columns(2, gap="large")
+    with left:
+        st.markdown("**Held-out test metrics**")
+        score_frame = pd.DataFrame(
+            {
+                "Decision tree": [
+                    dt_metrics["accuracy"],
+                    dt_metrics["precision_macro"],
+                    dt_metrics["recall_macro"],
+                    dt_metrics["f1_macro"],
+                ],
+                "Random forest": [
+                    rf_metrics["accuracy"],
+                    rf_metrics["precision_macro"],
+                    rf_metrics["recall_macro"],
+                    rf_metrics["f1_macro"],
+                ],
+            },
+            index=["Accuracy", "Macro precision", "Macro recall", "Macro F1"],
+        )
+        st.bar_chart(score_frame, color=["#9b7653", "#667b55"], y_label="Score")
+    with right:
+        selected_model = st.selectbox("Confusion matrix", ["Random forest", "Decision tree"])
+        selected_metrics = rf_metrics if selected_model == "Random forest" else dt_metrics
+        matrix = np.asarray(selected_metrics["confusion_matrix"])
+        matrix_frame = pd.DataFrame(
+            matrix,
+            index=[f"Actual {name}" for name in class_names],
+            columns=[f"Predicted {name}" for name in class_names],
+        )
+        st.dataframe(matrix_frame, width="stretch")
+        st.caption("Rows are actual labels; columns are predicted labels. Values are test-set sample counts.")
+
+    st.markdown(
+        '<p class="footnote">Metrics are computed on the stratified held-out test split. '
+        'Cross-validation values summarize five stratified folds.</p>',
+        unsafe_allow_html=True,
+    )
+
+with tab_insights:
+    st.markdown('<div class="section-kicker">Model interpretability</div>', unsafe_allow_html=True)
+    st.subheader("What drives the predictions")
+    importance_col, tree_col = st.columns([.9, 1.1], gap="large")
+    with importance_col:
+        importance_model = st.selectbox("Feature importance model", ["Random forest", "Decision tree"])
+        importance_metrics = rf_metrics if importance_model == "Random forest" else dt_metrics
+        importance_key = "feature_importances"
+        if importance_key not in importance_metrics:
+            st.error("Feature importance values are missing from the metrics artifact. Retrain the models to refresh it.")
         else:
-            st.error("🔴 **Low Soil Quality.** High soil stress detected. Lime treatment (if acidic) or organic composting needed to boost organic matter and nutrient availability.")
+            importance = pd.Series(importance_metrics[importance_key], dtype=float).reindex(feature_names)
+            if importance.isna().any():
+                st.error("Feature importance values do not match the model feature names.")
+            else:
+                importance = importance.sort_values()
+                st.markdown(f"**{importance_model} · impurity-based importance**")
+                st.bar_chart(
+                    importance.rename("Importance"),
+                    horizontal=True,
+                    color="#8b704f",
+                    x_label="Relative importance",
+                )
+                top_feature = str(importance.index[-1])
+                st.caption(
+                    f"{top_feature} has the highest relative importance in this model. "
+                    "Importance describes contribution to model splits, not causality."
+                )
 
-# ==============================================================================
-# TAB 2: PERFORMANCE ANALYTICS
-# ==============================================================================
-with tab2:
-    st.markdown("### 📈 Comprehensive Model Comparison")
-    
-    dt_m = metrics['decision_tree']
-    rf_m = metrics['random_forest']
-    
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Random Forest Accuracy", f"{rf_m['accuracy']*100:.2f}%", f"+{(rf_m['accuracy']-dt_m['accuracy'])*100:.2f}% vs Decision Tree")
-    m2.metric("Random Forest F1-Score", f"{rf_m['f1_macro']*100:.2f}%", f"+{(rf_m['f1_macro']-dt_m['f1_macro'])*100:.2f}% vs Decision Tree")
-    m3.metric("5-Fold Cross Validation Score", f"{rf_m['cv_mean']*100:.2f}%", f"+{(rf_m['cv_mean']-dt_m['cv_mean'])*100:.2f}% vs Decision Tree")
-    m4.metric("Variance Reduction (CV Std)", f"±{rf_m['cv_std']*100:.2f}%", f"Lower variance")
-    
-    st.divider()
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.image(os.path.join("static", "plots", "model_comparison.png"), caption="Performance Metrics Comparison Bar Chart", width="stretch")
-    with c2:
-        st.image(os.path.join("static", "plots", "confusion_matrices.png"), caption="Confusion Matrices (Decision Tree vs. Random Forest)", width="stretch")
+    with tree_col:
+        st.markdown("**Trained decision tree · first three levels**")
+        figure, axis = plt.subplots(figsize=(13, 6.5))
+        figure.patch.set_facecolor("#fffdf8")
+        axis.set_facecolor("#fffdf8")
+        plot_tree(
+            dt_model,
+            max_depth=3,
+            feature_names=feature_names,
+            class_names=[str(name) for name in class_names],
+            filled=True,
+            rounded=True,
+            proportion=True,
+            impurity=False,
+            fontsize=7,
+            ax=axis,
+        )
+        axis.set_title("Actual trained decision tree", color="#4e3828", fontsize=12, pad=14)
+        figure.tight_layout()
+        st.pyplot(figure, width="stretch")
+        plt.close(figure)
+        st.caption("Nodes show learned feature thresholds and class proportions. The displayed tree is truncated for readability.")
 
-# ==============================================================================
-# TAB 3: FEATURE & TREE INSIGHTS
-# ==============================================================================
-with tab3:
-    st.markdown("### 🔍 Model Interpretability & Tree Structure")
-    
-    col_feat, col_tree = st.columns(2)
-    with col_feat:
-        st.image(os.path.join("static", "plots", "feature_importance.png"), caption="Soil Feature Importance Weights", width="stretch")
-    with col_tree:
-        st.image(os.path.join("static", "plots", "decision_tree_structure.png"), caption="Visualization of Decision Tree Splits (Depth=3)", width="stretch")
-        
-    st.markdown("""
-        #### 📌 Key Takeaways:
-        - **Random Forest Ensemble Stability**: By combining 100 decision trees via bagging and random feature sub-selection, Random Forest overcomes single-tree variance and overfitting.
-        - **Most Influential Features**: Soil Nitrogen, pH, and Organic Matter contribute highest to soil quality classification.
-    """)
+    st.markdown("**Interpretation notes**")
+    st.write(
+        "Feature importance is read directly from the selected trained estimator. "
+        "It is relative within that model and does not establish that a feature causes a soil-quality outcome."
+    )
 
-# ==============================================================================
-# TAB 4: DATASET EXPLORER
-# ==============================================================================
-with tab4:
-    st.markdown("### 📁 Dataset Overview (`soil_data.csv`)")
-    
-    data_path = os.path.join("data", "soil_data.csv")
-    if os.path.exists(data_path):
-        df_raw = pd.read_csv(data_path)
-        
-        st.write(f"Total Record Count: **{len(df_raw)} samples**")
-        st.dataframe(df_raw.head(100), width="stretch")
-        
-        st.markdown("#### Summary Statistics")
-        st.dataframe(df_raw.describe().T, width="stretch")
+with tab_data:
+    st.markdown('<div class="section-kicker">Training data</div>', unsafe_allow_html=True)
+    st.subheader("Explore the soil samples")
+    if os.path.isfile(DATA_PATH):
+        dataset = load_dataset()
+        label_column = "Soil_Quality" if "Soil_Quality" in dataset.columns else (
+            "Soil_Type" if "Soil_Type" in dataset.columns else None
+        )
+        count_col, label_col = st.columns(2)
+        count_col.metric("Samples", f"{len(dataset):,}")
+        count_col.metric("Measurements", f"{len(dataset.columns) - (1 if label_column else 0)}")
+        if label_column:
+            distribution = dataset[label_column].value_counts().reindex(class_names, fill_value=0)
+            with label_col:
+                st.markdown("**Class distribution**")
+                st.bar_chart(distribution.rename("Samples"), color="#667b55")
+        search = st.text_input("Filter rows", placeholder="Search values or class labels")
+        filtered_dataset = dataset
+        if search:
+            row_matches = dataset.astype(str).apply(
+                lambda column: column.str.contains(search, case=False, regex=False)
+            ).any(axis=1)
+            filtered_dataset = dataset[row_matches]
+        st.caption(f"Showing {len(filtered_dataset):,} of {len(dataset):,} rows.")
+        st.dataframe(filtered_dataset, width="stretch", hide_index=True)
+        with st.expander("Summary statistics"):
+            st.dataframe(dataset.describe().T, width="stretch")
     else:
-        st.warning("Dataset not found on disk.")
+        st.error(f"Dataset not found at `{DATA_PATH}`.")
+
+st.divider()
+st.markdown(
+    '<p class="footnote">TERRA · Soil quality classification · Decision tree and random forest</p>',
+    unsafe_allow_html=True,
+)
